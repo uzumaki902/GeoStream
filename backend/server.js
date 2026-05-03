@@ -9,7 +9,7 @@ app.get("/restaurants", (req, res) => {
   try {
     let { minLat, maxLat, minLng, maxLng } = req.query;
 
-    // 1. Validate input
+    // 1. Check missing params
     if (
       minLat === undefined ||
       maxLat === undefined ||
@@ -25,23 +25,32 @@ app.get("/restaurants", (req, res) => {
     minLng = parseFloat(minLng);
     maxLng = parseFloat(maxLng);
 
+    // 3. Validate numbers
     if (isNaN(minLat) || isNaN(maxLat) || isNaN(minLng) || isNaN(maxLng)) {
       return res.status(400).json({ error: "Invalid bounds" });
     }
 
-    // 3. Spatial query (FAST)
+    // 4. Geo-range validation (NEW)
+    if (minLat < -90 || maxLat > 90 || minLng < -180 || maxLng > 180) {
+      return res.status(400).json({
+        error: "Coordinates out of valid range",
+      });
+    }
+
+    // 5. Spatial query using RBush
     const results = tree.search({
-      minX: minLng,
-      minY: minLat,
+      minX: minLng, // longitude
+      minY: minLat, // latitude
       maxX: maxLng,
       maxY: maxLat,
     });
 
-    // 4. Limit results (protect frontend)
+    // 6. Limit results
     const MAX_RESULTS = 500;
 
     const data = results.map((item) => item.restaurant).slice(0, MAX_RESULTS);
 
+    // 7. Send response
     res.json({
       count: data.length,
       truncated: results.length > MAX_RESULTS,
@@ -54,6 +63,7 @@ app.get("/restaurants", (req, res) => {
   }
 });
 
+// 8. Start server
 app.listen(5000, () => {
   console.log("GeoStream backend running on port 5000");
 });
